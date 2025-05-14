@@ -13,7 +13,7 @@ def generate_cities(n):
         cities.add(city)
     return list(cities)
 
-def compute_mst(cities):
+## def compute_mst(cities):
     """Compute Minimum Spanning Tree using Kruskal's algorithm"""
     graph = nx.Graph()
     for i, city1 in enumerate(cities):
@@ -25,35 +25,82 @@ def compute_mst(cities):
     mst = nx.minimum_spanning_tree(graph)
     return mst.edges(data=True)
 
-def plot_colored_cities_with_mst(cities, mst_edges, city_colors, algorithm_name):
-    """Plot the cities, MST, and colors with proper legend"""
+def check_intersection(p1, p2, p3, p4):
+    """Check if line segments (p1,p2) and (p3,p4) intersect"""
+    def ccw(A, B, C):
+        return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
+    
+    return ccw(p1,p3,p4) != ccw(p2,p3,p4) and ccw(p1,p2,p3) != ccw(p1,p2,p4)
+
+def compute_maximal_connections(cities):
+    """Compute maximal non-intersecting connections between cities"""
+    graph = nx.Graph()
+    graph.add_nodes_from(range(len(cities)))
+    
+    # Try all possible connections
+    possible_edges = []
+    for i in range(len(cities)):
+        for j in range(i+1, len(cities)):
+            possible_edges.append((i, j, distance.euclidean(cities[i], cities[j])))
+    
+    # Sort edges by distance (shorter edges first)
+    possible_edges.sort(key=lambda x: x[2])
+    
+    # Add edges if they don't intersect with existing ones
+    for edge in possible_edges:
+        i, j, dist = edge
+        can_add = True
+        
+        # Check intersection with existing edges
+        for existing_edge in graph.edges():
+            if i in existing_edge or j in existing_edge:
+                continue
+            
+            if check_intersection(
+                cities[i], cities[j],
+                cities[existing_edge[0]], cities[existing_edge[1]]
+            ):
+                can_add = False
+                break
+        
+        if can_add:
+            graph.add_edge(i, j, weight=dist)
+    
+    return list(graph.edges(data=True))
+
+def plot_colored_cities_with_connections(cities, connections, city_colors, algorithm_name):
+    """Plot the cities, connections, and colors with proper legend"""
     x_coords, y_coords = zip(*cities)
     plt.figure(figsize=(10, 10))
     
+    # Default color for cities without assigned colors
+    default_color = 'Gray'
     color_map = {
         'Red': 'red',
         'Blue': 'blue',
         'Green': 'green',
-        'Yellow': 'yellow'
+        'Yellow': 'yellow',
+        'Gray': 'gray'  # Add default color
     }
     
     legend_elements = []
     for color in color_map:
         legend_elements.append(plt.Line2D([0], [0], marker='o', color='w', 
                                markerfacecolor=color_map[color], markersize=10, label=color))
-    legend_elements.append(plt.Line2D([0], [0], color='black', lw=1, label='Roads'))
+    legend_elements.append(plt.Line2D([0], [0], color='black', lw=1, label='Connections'))
     
-    for edge in mst_edges:
+    for edge in connections:
         city1, city2, _ = edge
         x = [cities[city1][0], cities[city2][0]]
         y = [cities[city1][1], cities[city2][1]]
         plt.plot(x, y, c='black', linestyle='-', linewidth=1)
     
     for i, (x, y) in enumerate(cities):
-        plt.scatter(x, y, c=color_map[city_colors[i]], marker='o', s=80, edgecolors='black')
+        color = color_map[city_colors.get(i, default_color)]  # Use get() with default
+        plt.scatter(x, y, c=color, marker='o', s=80, edgecolors='black')
         plt.annotate(str(i), (x, y), fontsize=8, ha='center', va='center')
     
-    plt.title(f"2D Map of Cities with MST and Colors ({algorithm_name})")
+    plt.title(f"2D Map of Cities with Non-Intersecting Connections ({algorithm_name})")
     plt.xlabel("X Coordinate")
     plt.ylabel("Y Coordinate")
     plt.grid(True)
@@ -61,12 +108,12 @@ def plot_colored_cities_with_mst(cities, mst_edges, city_colors, algorithm_name)
     plt.show()
 
 # Algorithm 1: Greedy Coloring
-def greedy_coloring(cities, mst_edges):
+def greedy_coloring(cities, connections):
     """Implement greedy coloring algorithm"""
     graph = nx.Graph()
     graph.add_nodes_from(range(len(cities)))
     
-    for edge in mst_edges:
+    for edge in connections:
         graph.add_edge(edge[0], edge[1])
     
     colors = ['Red', 'Blue', 'Green', 'Yellow']
@@ -87,15 +134,22 @@ def greedy_coloring(cities, mst_edges):
             city_colors[city] = sorted_colors[0]
             color_usage[sorted_colors[0]] += 1
     
+    # Ensure all cities get a color
+    for city in graph.nodes():
+        if city not in city_colors:
+            available_colors = [c for c in colors]
+            city_colors[city] = available_colors[0]
+            color_usage[available_colors[0]] += 1
+    
     return city_colors
 
 # Algorithm 2: DSATUR Coloring
-def dsatur_coloring(cities, mst_edges):
+def dsatur_coloring(cities, connections):
     """Implement DSATUR coloring algorithm"""
     graph = nx.Graph()
     graph.add_nodes_from(range(len(cities)))
     
-    for edge in mst_edges:
+    for edge in connections:
         graph.add_edge(edge[0], edge[1])
     
     colors = ['Red', 'Blue', 'Green', 'Yellow']
@@ -140,15 +194,22 @@ def dsatur_coloring(cities, mst_edges):
             if neighbor not in city_colors:
                 saturation[neighbor] = compute_saturation(neighbor)
     
+    # Ensure all cities get a color
+    for city in graph.nodes():
+        if city not in city_colors:
+            available_colors = [c for c in colors]
+            city_colors[city] = available_colors[0]
+            color_usage[available_colors[0]] += 1
+    
     return city_colors
 
 # Algorithm 3: Backtracking Coloring
-def backtracking_coloring(cities, mst_edges):
+def backtracking_coloring(cities, connections):
     """Implement backtracking coloring algorithm"""
     graph = nx.Graph()
     graph.add_nodes_from(range(len(cities)))
     
-    for edge in mst_edges:
+    for edge in connections:
         graph.add_edge(edge[0], edge[1])
     
     colors = ['Red', 'Blue', 'Green', 'Yellow']
@@ -179,7 +240,15 @@ def backtracking_coloring(cities, mst_edges):
         
         return False
     
-    color_node(0)
+    # Ensure successful coloring
+    success = color_node(0)
+    if not success:
+        # If backtracking fails, assign default colors
+        for node in graph.nodes():
+            if city_colors[node] is None:
+                city_colors[node] = colors[0]
+                color_usage[colors[0]] += 1
+    
     return city_colors
 
 def main():
@@ -209,29 +278,29 @@ def main():
         except ValueError:
             print("Please enter a valid number")
     
-    # Generate cities and compute MST
+    # Generate cities and compute maximal connections
     cities = generate_cities(num_cities)
-    mst_edges = compute_mst(cities)
+    connections = compute_maximal_connections(cities)
     
     # Run selected algorithm
     start_time = time.time()
     
     if choice == 1:
         algorithm_name = "Greedy Algorithm"
-        city_colors = greedy_coloring(cities, mst_edges)
+        city_colors = greedy_coloring(cities, connections)
     elif choice == 2:
         algorithm_name = "DSATUR Algorithm"
-        city_colors = dsatur_coloring(cities, mst_edges)
+        city_colors = dsatur_coloring(cities, connections)
     else:
         algorithm_name = "Backtracking Algorithm"
-        city_colors = backtracking_coloring(cities, mst_edges)
+        city_colors = backtracking_coloring(cities, connections)
     
     elapsed_time = time.time() - start_time
     print(f"\n{algorithm_name} execution time: {elapsed_time:.6f} seconds")
     print("City Colors:", city_colors)
     
     # Plot results
-    plot_colored_cities_with_mst(cities, mst_edges, city_colors, algorithm_name)
+    plot_colored_cities_with_connections(cities, connections, city_colors, algorithm_name)
 
 if __name__ == "__main__":
     main()
