@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from scipy.spatial import distance
 import networkx as nx
 import time
+import heapq
 
 # Common Functions
 def generate_cities(n):
@@ -145,62 +146,44 @@ def greedy_coloring(cities, connections):
 
 # Algorithm 2: DSATUR Coloring
 def dsatur_coloring(cities, connections):
-    """Implement DSATUR coloring algorithm"""
     graph = nx.Graph()
     graph.add_nodes_from(range(len(cities)))
-    
     for edge in connections:
         graph.add_edge(edge[0], edge[1])
-    
     colors = ['Red', 'Blue', 'Green', 'Yellow']
-    color_usage = {color: 0 for color in colors}
     city_colors = {}
-    saturation = {node: 0 for node in graph.nodes()}
-    
-    def compute_saturation(node):
-        neighbor_colors = set()
-        for neighbor in graph.neighbors(node):
-            if neighbor in city_colors:
-                neighbor_colors.add(city_colors[neighbor])
-        return len(neighbor_colors)
-    
+    neighbor_colors = {node: set() for node in graph.nodes()}
+
     while len(city_colors) < len(graph.nodes()):
-        max_saturation = -1
-        max_node = None
-        
+        # Find the uncolored node with the highest saturation (and highest degree as tie-breaker)
+        max_sat = -1
+        max_deg = -1
+        candidate = None
         for node in graph.nodes():
-            if node not in city_colors:
-                node_saturation = compute_saturation(node)
-                if node_saturation > max_saturation or (node_saturation == max_saturation and graph.degree(node) > graph.degree(max_node or 0)):
-                    max_saturation = node_saturation
-                    max_node = node
-        
-        if max_node is None:
-            break
-        
-        neighbor_colors = set()
-        for neighbor in graph.neighbors(max_node):
-            if neighbor in city_colors:
-                neighbor_colors.add(city_colors[neighbor])
-        
-        available_colors = [c for c in colors if c not in neighbor_colors]
-        sorted_colors = sorted(available_colors, key=lambda c: color_usage[c])
-        
-        if sorted_colors:
-            city_colors[max_node] = sorted_colors[0]
-            color_usage[sorted_colors[0]] += 1
-        
-        for neighbor in graph.neighbors(max_node):
-            if neighbor not in city_colors:
-                saturation[neighbor] = compute_saturation(neighbor)
-    
-    # Ensure all cities get a color
-    for city in graph.nodes():
-        if city not in city_colors:
-            available_colors = [c for c in colors]
-            city_colors[city] = available_colors[0]
-            color_usage[available_colors[0]] += 1
-    
+            if node in city_colors:
+                continue
+            sat = len(neighbor_colors[node])
+            deg = graph.degree(node)
+            if sat > max_sat or (sat == max_sat and deg > max_deg):
+                max_sat = sat
+                max_deg = deg
+                candidate = node
+
+        # Assign the lowest available color
+        used_colors = set(city_colors.get(neigh) for neigh in graph.neighbors(candidate) if neigh in city_colors)
+        for color in colors:
+            if color not in used_colors:
+                city_colors[candidate] = color
+                break
+
+        # Update saturation for neighbors, only if neighbor is still tracked
+        for neigh in graph.neighbors(candidate):
+            if neigh not in city_colors and neigh in neighbor_colors:
+                neighbor_colors[neigh].add(city_colors[candidate])
+
+        # Remove candidate from neighbor_colors to avoid future KeyError
+        neighbor_colors.pop(candidate, None)
+
     return city_colors
 
 # Algorithm 3: Backtracking Coloring
@@ -304,3 +287,15 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# Test the algorithms with different numbers of cities
+# Uncomment the following block to test the algorithms with different numbers of cities
+
+# Run Greedy Coloring for n = 5, 10, ..., 40 and print execution times
+# for n in range(5, 65, 5):
+#     cities = generate_cities(n)
+#     connections = compute_maximal_connections(cities)
+#     start_time = time.time()
+#     city_colors = greedy_coloring(cities, connections)
+#     elapsed_time = time.time() - start_time
+#     print(f"n = {n}: Greedy Coloring execution time: {elapsed_time:.6f} seconds")
