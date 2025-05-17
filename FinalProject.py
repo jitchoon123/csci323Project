@@ -105,7 +105,7 @@ def plot_colored_cities_with_connections(cities, connections, city_colors, algor
     plt.xlabel("X Coordinate")
     plt.ylabel("Y Coordinate")
     plt.grid(True)
-    plt.legend(handles=legend_elements)
+    plt.legend(handles=legend_elements, loc='lower left')
     plt.show()
 
 # Algorithm 1: Greedy Coloring
