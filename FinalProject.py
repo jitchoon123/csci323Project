@@ -155,7 +155,7 @@ def dsatur_coloring(cities, connections):
     neighbor_colors = {node: set() for node in graph.nodes()}
 
     while len(city_colors) < len(graph.nodes()):
-        # Find the uncolored node with the highest saturation (and highest degree as tie-breaker)
+        # MCV: Find the uncolored node with the highest saturation (and highest degree as tie-breaker)
         max_sat = -1
         max_deg = -1
         candidate = None
@@ -169,12 +169,31 @@ def dsatur_coloring(cities, connections):
                 max_deg = deg
                 candidate = node
 
-        # Assign the lowest available color
+        # LCV: Choose the color that leaves the most options for neighbors
         used_colors = set(city_colors.get(neigh) for neigh in graph.neighbors(candidate) if neigh in city_colors)
-        for color in colors:
-            if color not in used_colors:
-                city_colors[candidate] = color
-                break
+        available_colors = [color for color in colors if color not in used_colors]
+        color_constraints = {}
+
+        for color in available_colors:
+            constraint_count = 0
+            for neigh in graph.neighbors(candidate):
+                if neigh not in city_colors:
+                    neigh_used = set(city_colors.get(n) for n in graph.neighbors(neigh) if n in city_colors)
+                    if color in neigh_used:
+                        constraint_count += 1
+            color_constraints[color] = constraint_count
+
+        # Sort colors by least constraining (lowest constraint_count)
+        lcv_sorted_colors = sorted(available_colors, key=lambda c: color_constraints[c])
+        if lcv_sorted_colors:
+            chosen_color = lcv_sorted_colors[0]
+            city_colors[candidate] = chosen_color
+        else:
+            # Fallback: assign a default color if no available colors exist
+            if available_colors:
+                city_colors[candidate] = available_colors[0]
+            else:
+                city_colors[candidate] = colors[0]  # Assign the first color as a fallback
 
         # Update saturation for neighbors, only if neighbor is still tracked
         for neigh in graph.neighbors(candidate):
